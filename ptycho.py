@@ -3,6 +3,7 @@
 
 # In[1]:
 
+import os
 import importlib
 import logging
 import time
@@ -31,8 +32,8 @@ for module in [tike, np]:
 
 # In[3]:
 
-amplitude = plt.imread("../../../tests/data/Cryptomeria_japonica-0128.png")
-phase = plt.imread("../../../tests/data/Bombus_terrestris-0128.png") * np.pi
+amplitude = plt.imread("./data/Cryptomeria_japonica-0128.png")
+phase = plt.imread("./data/Bombus_terrestris-0128.png") * np.pi
 np.min(phase), np.max(phase)
 
 # In[4]:
@@ -110,7 +111,11 @@ init_psi = (np.random.rand(*original.shape) +
             1j * np.random.rand(*original.shape)).astype('complex64')
 init_probe = (np.random.rand(*probe.shape) +
               1j * np.random.rand(*probe.shape)).astype('complex64')
-np.save(f'data', data)
+
+cg_iter = 10
+folder = f'./cg{cg_iter:02d}'
+
+np.save(f'{folder}/data', data)
 
 # In[ ]:
 
@@ -125,20 +130,26 @@ for algorithm in ['divided', 'combined', 'admm', 'admm1']:
     'μ': 0,  # parameter for ADMM
     }
 
-    np.savez(f'{algorithm}.{0:03d}', **result)
-    i0 = 0
-    for i in np.unique(np.logspace(0, 8, base=2).astype('int')):
-        start = time.time()
-        result = tike.ptycho.reconstruct(
-            data=data,
-            **result,
-            algorithm=algorithm,
-            num_iter=(i - i0),
-            recover_probe=True,
-            recover_psi=True,
-            cg_iter=10,
-        )
-        stop = time.time()
+    np.savez(f'{folder}/{algorithm}.{0:03d}', **result)
+    i0, cumtime = 0, 0
+    for i in np.unique(np.logspace(0, 9, base=2).astype('int')):
+        filename = f'{folder}/{algorithm}.{i:03d}.npz'
+        if not os.path.isfile(filename): 
+            start = time.time()
+            result = tike.ptycho.reconstruct(
+                data=data,
+                **result,
+                algorithm=algorithm,
+                num_iter=(i - i0),
+                recover_probe=True,
+                recover_psi=True,
+                cg_iter=10,
+            )
+            stop = time.time()
+            cumtime = cumtime + (stop - start)
+            result['time'] = cumtime
+            np.savez(filename, **result)
+        else:
+            result = np.load(filename)
+            cumtime = result['time']
         i0 = i
-        result['time'] = stop - start
-        np.savez(f'{algorithm}.{i:03d}', **result)
